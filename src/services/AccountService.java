@@ -4,8 +4,6 @@ import util.DBConnection;
 import java.sql.*;
 
 public class AccountService {
-    // We delegate the history recording to the TransactionService
-    private TransactionService txService = new TransactionService();
 
     // 1. Fetch Current Balance
     public double getBalance(int userId) {
@@ -21,62 +19,67 @@ public class AccountService {
         return 0.0;
     }
 
-    // 2. Deposit Money & Record Transaction
+    // 2. Optimized Deposit with Transaction Integrity
     public boolean deposit(int userId, double amount) {
-        String query = "UPDATE accounts SET balance = balance + ? WHERE user_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
+        String updateSQL = "UPDATE accounts SET balance = balance + ? WHERE user_id = ?";
+        String logSQL = "INSERT INTO transactions (account_number, type, amount) VALUES (?, 'DEPOSIT', ?)";
 
-            pstmt.setDouble(1, amount);
-            pstmt.setInt(2, userId);
-
-            if (pstmt.executeUpdate() > 0) {
-                // After balance update, record the transaction history
-                String accNum = getAccountNumber(userId);
-                txService.recordTransaction(accNum, "DEPOSIT", amount);
-                return true;
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return false;
+        return executeTransaction(userId, amount, updateSQL, logSQL);
     }
 
-    // 3. Withdraw Money & Record Transaction
+    // 3. Optimized Withdrawal with Transaction Integrity
     public boolean withdraw(int userId, double amount) {
-        if (getBalance(userId) < amount) return false; // Validation
+        if (getBalance(userId) < amount) return false;
 
-        String query = "UPDATE accounts SET balance = balance - ? WHERE user_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
+        String updateSQL = "UPDATE accounts SET balance = balance - ? WHERE user_id = ?";
+        String logSQL = "INSERT INTO transactions (account_number, type, amount) VALUES (?, 'WITHDRAWAL', ?)";
 
-            pstmt.setDouble(1, amount);
-            pstmt.setInt(2, userId);
-
-            if (pstmt.executeUpdate() > 0) {
-                // Record the withdrawal in history
-                String accNum = getAccountNumber(userId);
-                txService.recordTransaction(accNum, "WITHDRAWAL", amount);
-                return true;
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return false;
+        return executeTransaction(userId, amount, updateSQL, logSQL);
     }
 
-    // HELPER: Get Account Number from User ID
-    // This is needed because the 'transactions' table uses account_number as a Foreign Key
-    public String getAccountNumber(int userId) {
-        String query = "SELECT account_number FROM accounts WHERE user_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-            pstmt.setInt(1, userId);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) return rs.getString("account_number");
+    /**
+     * CORE LOGIC: Handles the atomic operation of updating balance AND logging history.
+     */
+    private boolean executeTransaction(int userId, double amount, String updateSQL, String logSQL) {
+        Connection conn = null;
+        try {
+            conn = DBConnection.getConnection();
+            conn.setAutoCommit(false); // START TRANSACTION
+
+            // 1. Update Balance
+            try (PreparedStatement updateStmt = conn.prepareStatement(updateSQL)) {
+                updateStmt.setDouble(1, amount);
+                updateStmt.setInt(2, userId);
+                updateStmt.executeUpdate();
+            }
+
+            // 2. Get Account Number
+            String accNum = "";
+            String accQuery = "SELECT account_number FROM accounts WHERE user_id = ?";
+            try (PreparedStatement accStmt = conn.prepareStatement(accQuery)) {
+                accStmt.setInt(1, userId);
+                ResultSet rs = accStmt.executeQuery();
+                if (rs.next()) accNum = rs.getString("account_number");
+            }
+
+            // 3. Log Transaction
+            try (PreparedStatement logStmt = conn.prepareStatement(logSQL)) {
+                logStmt.setString(1, accNum);
+                logStmt.setDouble(2, amount);
+                logStmt.executeUpdate();
+            }
+
+            conn.commit(); // SAVE BOTH
+            return true;
+
         } catch (SQLException e) {
+            if (conn != null) {
+                try { conn.rollback(); } catch (SQLException ex) { ex.printStackTrace(); }
+            }
             e.printStackTrace();
+            return false;
+        } finally {
+            try { if (conn != null) conn.close(); } catch (SQLException e) { e.printStackTrace(); }
         }
-        return null;
     }
 }

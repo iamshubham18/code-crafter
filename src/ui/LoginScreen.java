@@ -1,111 +1,186 @@
 package ui;
 
-import services.UserService;
 import models.User;
+import services.UserService;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.event.*;
 
 public class LoginScreen extends JFrame {
     private UserService userService = new UserService();
+    private final Color BG_DARK = new Color(18, 18, 18);
+    private final Color BRAND_PANEL_BG = new Color(25, 25, 32);
+    private final Color ACCENT_PURPLE = new Color(187, 134, 252);
+    private final Color FIELD_BG = new Color(30, 30, 38);
+    private Point initialClick;
+    private float frameOpacity = 0.0f;
 
     public LoginScreen() {
-        // 1. Window Configuration
-        setTitle("Global Digital Bank - Secure ATM");
-        setSize(600, 400);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setUndecorated(true);
+        setOpacity(0.0f); // Start invisible for animation
+        setSize(750, 500);
         setLocationRelativeTo(null);
-        setResizable(false);
 
-        // Main Container using a 1x2 Grid for the Split-Pane look
         JPanel container = new JPanel(new GridLayout(1, 2));
+        container.setBorder(BorderFactory.createLineBorder(ACCENT_PURPLE, 1));
 
-        // --- LEFT SIDE: Branding Panel ---
+        // --- LEFT SIDE: Brand ---
         JPanel brandPanel = new JPanel(new GridBagLayout());
-        brandPanel.setBackground(new Color(41, 128, 185)); // Deep Professional Blue
-
-        // Using HTML for multi-line centered text
-        JLabel brandLogo = new JLabel("<html><center><font size='7'>Phoneix</font><br>ATM System</center></html>");
-        brandLogo.setFont(new Font("Serif", Font.PLAIN, 24));
-        brandLogo.setForeground(Color.WHITE);
+        brandPanel.setBackground(BRAND_PANEL_BG);
+        brandPanel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(50, 50, 50)));
+        JLabel brandLogo = new JLabel("<html><center><font size='6' color='#BB86FC'>Code Crafters</font><br><font color='#A0A0A0'>ATM SYSTEM</font></center></html>");
         brandPanel.add(brandLogo);
 
-        // --- RIGHT SIDE: Login Form ---
+        // --- RIGHT SIDE: Form ---
         JPanel formPanel = new JPanel();
         formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
-        formPanel.setBorder(new EmptyBorder(40, 30, 40, 30));
-        formPanel.setBackground(Color.WHITE);
+        formPanel.setBorder(new EmptyBorder(10, 45, 30, 45));
+        formPanel.setBackground(BG_DARK);
+
+        // Exit Header
+        JPanel exitRow = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        exitRow.setOpaque(false);
+        JButton exitBtn = new JButton("✕");
+        exitBtn.setForeground(Color.GRAY);
+        exitBtn.setFont(new Font("SansSerif", Font.BOLD, 18));
+        exitBtn.setContentAreaFilled(false);
+        exitBtn.setBorderPainted(false);
+        exitBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        exitBtn.addActionListener(e -> System.exit(0));
+        exitRow.add(exitBtn);
 
         // Header Labels
         JLabel loginHeader = new JLabel("Welcome Back");
-        loginHeader.setFont(new Font("SansSerif", Font.BOLD, 22));
-        loginHeader.setAlignmentX(Component.LEFT_ALIGNMENT); // Fixed: All Caps
-
-        JLabel subHeader = new JLabel("Please enter your details to continue");
-        subHeader.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        subHeader.setForeground(Color.GRAY);
-        subHeader.setAlignmentX(Component.LEFT_ALIGNMENT); // Fixed: All Caps
+        loginHeader.setFont(new Font("SansSerif", Font.BOLD, 28));
+        loginHeader.setForeground(Color.WHITE);
+        loginHeader.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // Input Fields
         JTextField userField = new JTextField();
-        userField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 35));
+        styleLargeField(userField);
 
         JPasswordField pinField = new JPasswordField();
-        pinField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 35));
+        styleLargeField(pinField);
 
+        // Login Button
+        JButton loginBtn = new JButton("SIGN IN");
+        styleButton(loginBtn, ACCENT_PURPLE);
 
-        // Action Button Styling
-        JButton loginBtn = new JButton("Sign In");
-        loginBtn.setBackground(new Color(41, 128, 185)); // Sets button background to Blue
-        loginBtn.setForeground(Color.WHITE);             // Sets text color to White
-        loginBtn.setFont(new Font("SansSerif", Font.BOLD, 14));
-        loginBtn.setOpaque(true);                         // Ensures the color is solid
-        loginBtn.setBorderPainted(false);                 // Clean, flat look
-        loginBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        loginBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
-        loginBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        loginBtn.setFocusPainted(false);
+        // Registration Link
+        JButton registerBtn = new JButton("Don't have an account? Register here");
+        registerBtn.setForeground(ACCENT_PURPLE);
+        registerBtn.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        registerBtn.setContentAreaFilled(false);
+        registerBtn.setBorderPainted(false);
+        registerBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        registerBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         // --- Assembly ---
+        formPanel.add(exitRow);
+        formPanel.add(Box.createVerticalGlue());
         formPanel.add(loginHeader);
-        formPanel.add(subHeader);
-        formPanel.add(Box.createVerticalStrut(30)); // Spacer
-
-        JLabel uLabel = new JLabel("Username");
-        uLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        formPanel.add(uLabel);
-        formPanel.add(Box.createVerticalStrut(5));
+        formPanel.add(Box.createVerticalStrut(40));
+        formPanel.add(createFieldLabel("Username"));
         formPanel.add(userField);
-
-        formPanel.add(Box.createVerticalStrut(15));
-
-        JLabel pLabel = new JLabel("PIN");
-        pLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        formPanel.add(pLabel);
-        formPanel.add(Box.createVerticalStrut(5));
+        formPanel.add(Box.createVerticalStrut(20));
+        formPanel.add(createFieldLabel("Security PIN"));
         formPanel.add(pinField);
-
-        formPanel.add(Box.createVerticalStrut(30));
+        formPanel.add(Box.createVerticalStrut(40));
         formPanel.add(loginBtn);
+        formPanel.add(Box.createVerticalStrut(10));
+        formPanel.add(registerBtn);
+        formPanel.add(Box.createVerticalGlue());
 
-        // Login Logic
+        // --- Listeners ---
         loginBtn.addActionListener(e -> {
-            String username = userField.getText();
-            String pin = new String(pinField.getPassword());
-            User authenticatedUser = userService.login(username, pin);
-
-            if (authenticatedUser != null) {
-                new Dashboard(authenticatedUser).setVisible(true);
-                this.dispose();
+            User authUser = userService.login(userField.getText(), new String(pinField.getPassword()));
+            if (authUser != null) {
+                // If Dashboard.java is in the same 'ui' package, this will now compile
+                new Dashboard(authUser).setVisible(true);
+                dispose();
             } else {
-                JOptionPane.showMessageDialog(this, "Invalid Username or PIN", "Authentication Error", JOptionPane.ERROR_MESSAGE);
+                showThemedError("Invalid Credentials");
             }
         });
 
-        // Combine Panels
+        registerBtn.addActionListener(e -> {
+            new RegistrationScreen().setVisible(true);
+            dispose();
+        });
+
         container.add(brandPanel);
         container.add(formPanel);
-
         add(container);
+
+        enableDragging(container);
+        startEntranceAnimation();
+    }
+
+    private void styleButton(JButton btn, Color bg) {
+        btn.setBackground(bg);
+        btn.setForeground(Color.BLACK);
+        btn.setFont(new Font("SansSerif", Font.BOLD, 15));
+        btn.setMaximumSize(new Dimension(320, 50));
+        btn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(false);
+        btn.setOpaque(true);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    }
+
+    private void startEntranceAnimation() {
+        Timer timer = new Timer(20, e -> {
+            frameOpacity += 0.05f;
+            if (frameOpacity >= 1.0f) {
+                setOpacity(1.0f);
+                ((Timer) e.getSource()).stop();
+            } else {
+                setOpacity(frameOpacity);
+            }
+        });
+        timer.start();
+    }
+
+    private void styleLargeField(JTextField field) {
+        field.setMaximumSize(new Dimension(320, 45));
+        field.setPreferredSize(new Dimension(320, 45));
+        field.setBackground(FIELD_BG);
+        field.setForeground(Color.WHITE);
+        field.setCaretColor(ACCENT_PURPLE);
+        field.setFont(new Font("SansSerif", Font.PLAIN, 15));
+        field.setAlignmentX(Component.CENTER_ALIGNMENT);
+        field.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(70, 70, 80), 1),
+                new EmptyBorder(0, 15, 0, 15)
+        ));
+    }
+
+    private JLabel createFieldLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setForeground(new Color(170, 170, 170));
+        label.setFont(new Font("SansSerif", Font.BOLD, 13));
+        label.setAlignmentX(Component.CENTER_ALIGNMENT);
+        label.setBorder(new EmptyBorder(0, 0, 8, 0));
+        return label;
+    }
+
+    private void showThemedError(String msg) {
+        UIManager.put("OptionPane.background", BG_DARK);
+        UIManager.put("Panel.background", BG_DARK);
+        UIManager.put("OptionPane.messageForeground", Color.WHITE);
+        JOptionPane.showMessageDialog(this, msg, "Error", JOptionPane.ERROR_MESSAGE);
+    }
+
+    private void enableDragging(JPanel panel) {
+        panel.addMouseListener(new MouseAdapter() {
+            public void mousePressed(MouseEvent e) { initialClick = e.getPoint(); }
+        });
+        panel.addMouseMotionListener(new MouseAdapter() {
+            public void mouseDragged(MouseEvent e) {
+                setLocation(getLocation().x + e.getX() - initialClick.x,
+                        getLocation().y + e.getY() - initialClick.y);
+            }
+        });
     }
 }

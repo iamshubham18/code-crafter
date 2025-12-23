@@ -5,124 +5,173 @@ import services.AccountService;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.geom.RoundRectangle2D;
+import java.awt.event.*;
 
-public class Dashboard extends JFrame {
+public class Dashboard extends JFrame implements RefreshListener {
     private User currentUser;
     private AccountService accountService = new AccountService();
+    private JLabel balLabel;
+    private JButton toggleBtn;
     private boolean isBalanceVisible = false;
+    private Point initialClick;
+
+    // Palette
+    private final Color BG_COLOR = new Color(18, 18, 18);
+    private final Color CARD_COLOR = new Color(30, 30, 38);
+    private final Color ACCENT_PURPLE = new Color(187, 134, 252);
 
     public Dashboard(User user) {
         this.currentUser = user;
 
-        // 1. Window Setup
-        setTitle("GDB Glass Portal");
+        setUndecorated(true);
         setSize(900, 600);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        // We use a custom JPanel to draw a colorful gradient background
-        JPanel backgroundPanel = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2d = (Graphics2D) g;
-                // Creating a beautiful Blue to Purple Gradient
-                GradientPaint gp = new GradientPaint(0, 0, new Color(41, 128, 185),
-                        getWidth(), getHeight(), new Color(142, 68, 173));
-                g2d.setPaint(gp);
-                g2d.fillRect(0, 0, getWidth(), getHeight());
-            }
-        };
-        backgroundPanel.setLayout(new BorderLayout());
-        setContentPane(backgroundPanel);
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(BG_COLOR);
+        mainPanel.setBorder(new EmptyBorder(20, 50, 30, 50));
+        setContentPane(mainPanel);
 
-        // 2. The Glass Container
-        JPanel glassPanel = new JPanel();
-        glassPanel.setLayout(new BoxLayout(glassPanel, BoxLayout.Y_AXIS));
+        // --- Header ---
+        setupHeader(mainPanel);
 
-        // TRANSPARENCY: The last number (60) is the alpha channel (0-255)
-        glassPanel.setBackground(new Color(255, 255, 255, 60));
-        glassPanel.setOpaque(false); // Required for custom alpha background
-        glassPanel.setBorder(new EmptyBorder(40, 40, 40, 40));
+        // --- Center Content ---
+        JPanel centerContainer = new JPanel();
+        centerContainer.setLayout(new BoxLayout(centerContainer, BoxLayout.Y_AXIS));
+        centerContainer.setOpaque(false);
 
-        // 3. Balance Display (Glassy Card)
-        JPanel balanceCard = createGlassCard();
-        JLabel balLabel = new JLabel("********");
-        balLabel.setFont(new Font("SansSerif", Font.BOLD, 42));
+        // Balance Card
+        setupBalanceCard(centerContainer);
+
+        // Action Grid
+        setupActionGrid(centerContainer);
+
+        mainPanel.add(centerContainer, BorderLayout.CENTER);
+        enableDragging();
+    }
+
+    private void setupHeader(JPanel mainPanel) {
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+
+        JLabel welcome = new JLabel("Welcome, " + currentUser.getUsername());
+        welcome.setFont(new Font("SansSerif", Font.PLAIN, 18));
+        welcome.setForeground(Color.LIGHT_GRAY);
+
+        JButton closeBtn = new JButton("✕");
+        closeBtn.setForeground(new Color(207, 102, 121));
+        closeBtn.setContentAreaFilled(false);
+        closeBtn.setBorderPainted(false);
+        closeBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        closeBtn.addActionListener(e -> System.exit(0));
+
+        header.add(welcome, BorderLayout.WEST);
+        header.add(closeBtn, BorderLayout.EAST);
+        mainPanel.add(header, BorderLayout.NORTH);
+    }
+
+    private void setupBalanceCard(JPanel container) {
+        JPanel card = new JPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBackground(CARD_COLOR);
+        card.setBorder(new EmptyBorder(30, 30, 30, 30));
+        card.setMaximumSize(new Dimension(800, 180));
+
+        balLabel = new JLabel("••••••••");
+        balLabel.setFont(new Font("Monospaced", Font.BOLD, 48));
         balLabel.setForeground(Color.WHITE);
+        balLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JButton toggleBtn = new JButton("View Balance");
-        styleGlassButton(toggleBtn);
+        toggleBtn = new JButton("SHOW BALANCE");
+        toggleBtn.setForeground(ACCENT_PURPLE);
+        toggleBtn.setContentAreaFilled(false);
+        toggleBtn.setBorder(BorderFactory.createLineBorder(ACCENT_PURPLE, 1));
+        toggleBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        toggleBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        toggleBtn.addActionListener(e -> toggleBalance());
 
-        toggleBtn.addActionListener(e -> {
-            if (isBalanceVisible) {
-                balLabel.setText("********");
-                toggleBtn.setText("View Balance");
-            } else {
-                double bal = accountService.getBalance(user.getUserId());
-                balLabel.setText("$" + String.format("%.2f", bal));
-                toggleBtn.setText("Hide Balance");
-            }
-            isBalanceVisible = !isBalanceVisible;
-        });
+        card.add(balLabel);
+        card.add(Box.createVerticalStrut(15));
+        card.add(toggleBtn);
 
-        balanceCard.add(balLabel);
-        balanceCard.add(Box.createVerticalStrut(10));
-        balanceCard.add(toggleBtn);
+        container.add(Box.createVerticalGlue());
+        container.add(card);
+        container.add(Box.createVerticalStrut(40));
+    }
 
-        // 4. Action Grid
+    private void toggleBalance() {
+        if (isBalanceVisible) {
+            balLabel.setText("••••••••");
+            toggleBtn.setText("SHOW BALANCE");
+        } else {
+            double bal = accountService.getBalance(currentUser.getUserId());
+            balLabel.setText("₹" + String.format("%.2f", bal));
+            toggleBtn.setText("HIDE BALANCE");
+        }
+        isBalanceVisible = !isBalanceVisible;
+    }
+
+    private void setupActionGrid(JPanel container) {
         JPanel grid = new JPanel(new GridLayout(2, 2, 20, 20));
         grid.setOpaque(false);
-        grid.add(createGlassActionBtn("Deposit", e -> new DepositScreen(currentUser).setVisible(true)));
-        grid.add(createGlassActionBtn("Withdraw", e -> new WithdrawScreen(currentUser).setVisible(true)));
-        grid.add(createGlassActionBtn("History", e -> new TransactionHistoryScreen(currentUser).setVisible(true)));
-        grid.add(createGlassActionBtn("Logout", e -> System.exit(0)));
 
-        glassPanel.add(balanceCard);
-        glassPanel.add(Box.createVerticalStrut(40));
-        glassPanel.add(grid);
+        grid.add(createAnimatedBtn("Deposit", new Color(3, 218, 198),
+                e -> new DepositScreen(currentUser, this).setVisible(true)));
 
-        backgroundPanel.add(glassPanel, BorderLayout.CENTER);
-    }
+        grid.add(createAnimatedBtn("Withdraw", new Color(207, 102, 121),
+                e -> new WithdrawScreen(currentUser, this).setVisible(true)));
 
-    // Helper to create a "Glass" look for cards
-    private JPanel createGlassCard() {
-        JPanel card = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(255, 255, 255, 40)); // Frosted effect
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 30, 30);
-                g2.setColor(new Color(255, 255, 255, 80)); // Border
-                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 30, 30);
-                g2.dispose();
+        grid.add(createAnimatedBtn("History", CARD_COLOR,
+                e -> new TransactionHistoryScreen(currentUser).setVisible(true)));
+
+        // UPDATED: Changed from opening LoginScreen to System.exit(0)
+        grid.add(createAnimatedBtn("Logout & Exit", new Color(45, 45, 55), e -> {
+            int choice = JOptionPane.showConfirmDialog(
+                    this,
+                    "Are you sure you want to logout and exit the ATM?",
+                    "Exit Confirmation",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+            );
+
+            if (choice == JOptionPane.YES_OPTION) {
+                System.exit(0);
             }
-        };
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setOpaque(false);
-        card.setBorder(new EmptyBorder(20, 20, 20, 20));
-        card.setAlignmentX(Component.CENTER_ALIGNMENT);
-        return card;
+        }));
+
+        container.add(grid);
+        container.add(Box.createVerticalGlue());
     }
 
-    private JButton createGlassActionBtn(String text, java.awt.event.ActionListener action) {
+    @Override
+    public void onTransactionComplete() {
+        if (isBalanceVisible) {
+            double bal = accountService.getBalance(currentUser.getUserId());
+            balLabel.setText("₹" + String.format("%.2f", bal));
+        }
+    }
+
+    private JButton createAnimatedBtn(String text, Color baseColor, ActionListener action) {
         JButton btn = new JButton(text);
         btn.setFont(new Font("SansSerif", Font.BOLD, 16));
+        btn.setBackground(baseColor);
         btn.setForeground(Color.WHITE);
-        btn.setContentAreaFilled(false);
         btn.setFocusPainted(false);
-        btn.setBorder(BorderFactory.createLineBorder(new Color(255, 255, 255, 100), 1));
+        btn.setBorderPainted(false);
+        btn.setOpaque(true);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btn.addActionListener(action);
         return btn;
     }
 
-    private void styleGlassButton(JButton btn) {
-        btn.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        btn.setForeground(new Color(230, 230, 230));
-        btn.setContentAreaFilled(false);
-        btn.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Color.WHITE));
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    private void enableDragging() {
+        this.addMouseListener(new MouseAdapter() {
+            public void mousePressed(MouseEvent e) { initialClick = e.getPoint(); }
+        });
+        this.addMouseMotionListener(new MouseAdapter() {
+            public void mouseDragged(MouseEvent e) {
+                setLocation(getLocation().x + e.getX() - initialClick.x, getLocation().y + e.getY() - initialClick.y);
+            }
+        });
     }
 }
